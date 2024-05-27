@@ -16,10 +16,17 @@
 
 package com.hivemq.client.mqtt.examples;
 
-import com.hivemq.client.mqtt.datatypes.MqttQos;
+import com.hivemq.client.internal.mqtt.datatypes.MqttUtf8StringImpl;
+import com.hivemq.client.internal.mqtt.message.auth.MqttSimpleAuth;
+import com.hivemq.client.mqtt.MqttClientSslConfig;
+import com.hivemq.client.mqtt.MqttWebSocketConfig;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5AsyncClient;
 import com.hivemq.client.mqtt.mqtt5.Mqtt5Client;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLSession;
+import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,21 +36,63 @@ import java.util.concurrent.TimeUnit;
  */
 public class AsyncDemo {
 
+    private static final String HOST = "";
+    private static final String SECRET = "";
+    private static final String CLIENT_ID = "";
+    private static final int MESSAGE_COUNT = 10;
     public static void main(final String[] args) throws InterruptedException {
 
-        final Mqtt5AsyncClient client = Mqtt5Client.builder().serverHost("broker.hivemq.com").buildAsync();
+        MqttWebSocketConfig config = MqttWebSocketConfig.builder()
+                .serverPath("mqtt")
+                .build();
 
-        client.connect()
-                .thenAccept(connAck -> System.out.println("connected " + connAck))
-                .thenCompose(v -> client.publishWith().topic("demo/topic/b").qos(MqttQos.EXACTLY_ONCE).send())
-                .thenAccept(publishResult -> System.out.println("published " + publishResult))
-                .thenCompose(v -> client.disconnect())
-                .thenAccept(v -> System.out.println("disconnected"));
+        MqttClientSslConfig sslConfig = MqttClientSslConfig.builder()
+                .hostnameVerifier(new HostnameVerifier() {
+                    @Override
+                    public boolean verify(String hostname, SSLSession session) {
+                        return true;
+                    }
+                })
+                .build();
 
-        System.out.println("see that everything above is async");
-        for (int i = 0; i < 5; i++) {
-            TimeUnit.MILLISECONDS.sleep(50);
-            System.out.println("...");
-        }
+        MqttSimpleAuth auth = new MqttSimpleAuth(MqttUtf8StringImpl.of(CLIENT_ID), ByteBuffer.wrap(SECRET.getBytes()));
+
+        final Mqtt5AsyncClient client = Mqtt5Client.builder()
+                .serverHost(HOST)
+                .simpleAuth(auth)
+                .serverPort(443)
+                .identifier(CLIENT_ID)
+                .webSocketConfig(config)
+                .useSsl(sslConfig)
+                .buildAsync();
+
+        CountDownLatch latch = new CountDownLatch(MESSAGE_COUNT);
+
+        client.subscribeWith()
+                .topicFilter("dt/#")
+                .callback(publish -> {
+                    System.out.println(publish);
+                    // Process the received message
+                    latch.countDown();
+                })
+                .send()
+                .whenComplete((subAck, throwable) -> {
+                    if (throwable != null) {
+                        System.out.println("Error subscribing to the topic !");
+                        System.out.println(throwable);
+                        // Handle failure to subscribe
+                    } else {
+                        System.out.println("Subscribed to the topic !");
+                        System.out.println(subAck);
+                        // Handle successful subscription, e.g. logging or incrementing a metric
+                    }
+                });
+        client.connect();
+
+        System.out.println("Waiting for all messages to get received...");
+        latch.await(60, TimeUnit.SECONDS);
+        System.out.println("Done.");
+
+        client.disconnect();
     }
 }

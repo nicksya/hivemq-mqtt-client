@@ -69,11 +69,13 @@ dependencies {
     api("io.reactivex.rxjava2:rxjava:${property("rxjava.version")}")
     api("org.reactivestreams:reactive-streams:${property("reactive-streams.version")}")
 
+//    implementation("io.netty:netty-all:${property("netty.version")}")
     implementation("io.netty:netty-buffer:${property("netty.version")}")
     implementation("io.netty:netty-codec:${property("netty.version")}")
     implementation("io.netty:netty-common:${property("netty.version")}")
     implementation("io.netty:netty-handler:${property("netty.version")}")
     implementation("io.netty:netty-transport:${property("netty.version")}")
+    implementation("io.netty:netty-handler-ssl-ocsp:${property("netty.version")}")
     implementation("org.jctools:jctools-core:${property("jctools.version")}")
     implementation("org.jetbrains:annotations:${property("annotations.version")}")
     implementation("com.google.dagger:dagger:${property("dagger.version")}")
